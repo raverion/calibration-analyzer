@@ -109,7 +109,7 @@ function saveConfig() {
             unit: filesInfo.unit,
             configurations: configs.map(c => ({
                 test_value: c.test_value,
-                range_setting: c.range_setting,
+                range_setting: c.range_setting === 'N/A' ? null : c.range_setting,
                 io_type: c.io_type,
                 range_input: c.range_input,
                 reference: c.reference.toString(),
@@ -187,28 +187,55 @@ function applyConfig(configData) {
     }
     
     const configurations = configData.configurations || [];
+    const rows = document.querySelectorAll('#config-table tbody tr');
+    
+    let loadedCount = 0;
     
     configurations.forEach(config => {
-        const row = document.querySelector(
-            `#config-table tbody tr[data-test-value="${config.test_value}"][data-range-setting="${config.range_setting}"][data-io-type="${config.io_type}"]`
-        );
+        // Normalize the config values for comparison
+        const configTestValue = parseFloat(config.test_value);
+        const configRangeSetting = normalizeRangeSetting(config.range_setting);
+        const configIoType = config.io_type;
         
-        if (row) {
-            const rangeInput = row.querySelector('.range-input');
-            const referenceInput = row.querySelector('.reference-input');
-            const toleranceInput = row.querySelector('.tolerance-input');
+        // Find matching row by iterating through all rows
+        rows.forEach(row => {
+            const rowTestValue = parseFloat(row.dataset.testValue);
+            const rowRangeSetting = normalizeRangeSetting(row.dataset.rangeSetting);
+            const rowIoType = row.dataset.ioType;
             
-            if (config.range_input !== undefined) {
-                rangeInput.value = config.range_input;
+            // Compare with tolerance for floating-point values
+            const testValueMatch = Math.abs(rowTestValue - configTestValue) < 0.0001;
+            const rangeMatch = rowRangeSetting === configRangeSetting;
+            const ioTypeMatch = rowIoType === configIoType;
+            
+            if (testValueMatch && rangeMatch && ioTypeMatch) {
+                const rangeInput = row.querySelector('.range-input');
+                const referenceInput = row.querySelector('.reference-input');
+                const toleranceInput = row.querySelector('.tolerance-input');
+                
+                if (config.range_input !== undefined && rangeInput) {
+                    rangeInput.value = config.range_input;
+                }
+                if (config.reference !== undefined && referenceInput) {
+                    referenceInput.value = config.reference;
+                }
+                if (config.tolerance !== undefined && toleranceInput) {
+                    toleranceInput.value = config.tolerance;
+                }
+                loadedCount++;
             }
-            if (config.reference !== undefined) {
-                referenceInput.value = config.reference;
-            }
-            if (config.tolerance !== undefined) {
-                toleranceInput.value = config.tolerance;
-            }
-        }
+        });
     });
+    
+    console.log(`Applied ${loadedCount} configurations`);
+}
+
+// Helper function to normalize range setting values for comparison
+function normalizeRangeSetting(value) {
+    if (value === null || value === undefined || value === 'None' || value === 'null') {
+        return 'N/A';
+    }
+    return String(value).trim();
 }
 
 // Show notification
