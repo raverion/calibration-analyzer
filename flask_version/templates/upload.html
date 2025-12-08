@@ -26,12 +26,14 @@
 </div>
 
 <div class="upload-section">
-    <div class="upload-zone" id="upload-zone">
-        <div class="upload-icon">📂</div>
-        <h3>Drag & Drop Files Here</h3>
-        <p>or click to browse</p>
+    <div class="upload-zone-wrapper">
+        <div class="upload-zone" id="upload-zone">
+            <div class="upload-icon">📂</div>
+            <h3>Drag & Drop Files Here</h3>
+            <p>or</p>
+        </div>
         <input type="file" id="file-input" multiple accept=".csv,.txt" hidden>
-        <button class="btn btn-primary" onclick="document.getElementById('file-input').click()">
+        <button class="btn btn-primary" id="select-files-btn" onclick="document.getElementById('file-input').click()">
             Select Files
         </button>
     </div>

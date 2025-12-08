@@ -30,11 +30,12 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
-    // Click to upload
+    // Click on upload zone to browse
     uploadZone.addEventListener('click', function() {
         fileInput.click();
     });
     
+    // Handle file selection (triggered by both button and zone click)
     fileInput.addEventListener('change', function() {
         if (fileInput.files.length > 0) {
             handleFiles(fileInput.files);
