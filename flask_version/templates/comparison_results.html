@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Results - Cross-Equipment Comparison{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>✅ Comparison Report Generated</h1>
+    <p>Your cross-equipment comparison report is ready</p>
+</div>
+
+<div class="progress-steps">
+    <div class="step completed">
+        <span class="step-number">✓</span>
+        <span class="step-label">Upload Reports</span>
+    </div>
+    <div class="step-connector completed"></div>
+    <div class="step completed">
+        <span class="step-number">✓</span>
+        <span class="step-label">Configure</span>
+    </div>
+    <div class="step-connector completed"></div>
+    <div class="step active completed">
+        <span class="step-number">✓</span>
+        <span class="step-label">Results</span>
+    </div>
+</div>
+
+<div class="results-section">
+    <div class="result-cards single">
+        {% if output_files.html %}
+        <div class="result-card">
+            <div class="card-icon">🌐</div>
+            <h3>Interactive Comparison Report</h3>
+            <p>Interactive charts comparing equipment samples with zoom, pan, and hover details</p>
+            <div class="file-name">{{ output_files.html }}</div>
+            <div class="card-actions">
+                <a href="{{ url_for('view_file', filename=output_files.html) }}" class="btn btn-primary" target="_blank">
+                    👁️ View Report
+                </a>
+                <a href="{{ url_for('download_file', filename=output_files.html) }}" class="btn btn-secondary">
+                    ⬇️ Download
+                </a>
+            </div>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+{% if output_files.html %}
+<div class="preview-section">
+    <h2>Report Preview</h2>
+    <div class="preview-frame-container">
+        <iframe src="{{ url_for('view_file', filename=output_files.html) }}" class="preview-frame"></iframe>
+    </div>
+</div>
+{% endif %}
+
+<div class="action-buttons">
+    <a href="{{ url_for('comparison_report') }}" class="btn btn-secondary">
+        ← Compare More Equipment
+    </a>
+    <a href="{{ url_for('index') }}" class="btn btn-primary">
+        🏠 Home
+    </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.result-cards.single {
+    display: flex;
+    justify-content: center;
+}
+.result-cards.single .result-card {
+    max-width: 500px;
+}
+</style>
+{% endblock %}

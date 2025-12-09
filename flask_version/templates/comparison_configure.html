@@ -1,0 +1,234 @@
+{% extends "base.html" %}
+
+{% block title %}Configure - Cross-Equipment Comparison{% endblock %}
+
+{% block content %}
+<div class="page-header">
+    <h1>⚙️ Configure Comparison</h1>
+    <p>Select which data to include in the comparison report</p>
+</div>
+
+<div class="progress-steps">
+    <div class="step completed">
+        <span class="step-number">✓</span>
+        <span class="step-label">Upload Reports</span>
+    </div>
+    <div class="step-connector completed"></div>
+    <div class="step active">
+        <span class="step-number">2</span>
+        <span class="step-label">Configure</span>
+    </div>
+    <div class="step-connector"></div>
+    <div class="step">
+        <span class="step-number">3</span>
+        <span class="step-label">Results</span>
+    </div>
+</div>
+
+{% if warnings %}
+<div class="warnings-section">
+    {% for warning in warnings %}
+    <div class="warning-box">
+        <strong>⚠️ Warning:</strong> {{ warning.message }}
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="config-summary">
+    <div class="summary-item">
+        <span class="label">Reports:</span>
+        <span class="value">{{ files|length }}</span>
+    </div>
+    <div class="summary-item">
+        <span class="label">Samples:</span>
+        <span class="value">{{ files|map(attribute='sample_id')|list|join(', ') }}</span>
+    </div>
+</div>
+
+<div class="config-section">
+    <h2>📊 Comparison Settings</h2>
+    
+    <div class="config-group">
+        <label class="config-label">I/O Type Filter</label>
+        <p class="config-desc">Select which I/O type to include in the comparison</p>
+        <div class="radio-group">
+            <label class="radio-option">
+                <input type="radio" name="io_type" value="all" checked>
+                <span>All (Input & Output)</span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="io_type" value="Input">
+                <span>Input only</span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="io_type" value="Output">
+                <span>Output only</span>
+            </label>
+        </div>
+    </div>
+    
+    <div class="config-group">
+        <label class="config-label">Channel Display</label>
+        <p class="config-desc">Select how to display channel data</p>
+        <div class="radio-group">
+            <label class="radio-option">
+                <input type="radio" name="channels" value="all" checked>
+                <span>Show all channels individually</span>
+            </label>
+            <label class="radio-option">
+                <input type="radio" name="channels" value="mean">
+                <span>Show mean of all channels per sample</span>
+            </label>
+        </div>
+    </div>
+</div>
+
+<div class="info-section">
+    <h3>📌 About Normalized Error Display</h3>
+    <p>The comparison report shows <strong>normalized error values</strong> instead of absolute measurements:</p>
+    <ul>
+        <li><strong>Error = Measured Mean - Reference Value</strong></li>
+        <li>Zero on the Y-axis represents perfect accuracy (no error)</li>
+        <li>Positive values mean the measurement is above the reference</li>
+        <li>Negative values mean the measurement is below the reference</li>
+        <li>The tolerance limits are shown as +Tolerance and -Tolerance</li>
+    </ul>
+    <p>This normalization allows fair comparison even when reference values differ between samples.</p>
+</div>
+
+<div class="action-buttons">
+    <a href="{{ url_for('comparison_report') }}" class="btn btn-secondary">← Back to Upload</a>
+    <button class="btn btn-primary" onclick="generateReport()" id="generate-btn">
+        Generate Comparison Report →
+    </button>
+</div>
+
+<div class="loading-overlay" id="loading-overlay" style="display: none;">
+    <div class="spinner"></div>
+    <p>Generating comparison report...</p>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function generateReport() {
+    const loadingOverlay = document.getElementById('loading-overlay');
+    
+    const ioType = document.querySelector('input[name="io_type"]:checked').value;
+    const channels = document.querySelector('input[name="channels"]:checked').value;
+    
+    loadingOverlay.style.display = 'flex';
+    
+    fetch('/api/process-comparison', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            io_type: ioType,
+            channels: channels
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        loadingOverlay.style.display = 'none';
+        
+        if (data.error) {
+            alert('Error: ' + data.error + '\n\n' + (data.traceback || ''));
+            return;
+        }
+        
+        window.location.href = '/comparison-results';
+    })
+    .catch(error => {
+        loadingOverlay.style.display = 'none';
+        alert('Processing failed: ' + error.message);
+    });
+}
+</script>
+
+<style>
+.warnings-section {
+    margin-bottom: 20px;
+}
+.warning-box {
+    background: #fff3cd;
+    border-left: 4px solid #ffc107;
+    padding: 15px;
+    margin-bottom: 10px;
+    border-radius: 0 8px 8px 0;
+    color: #856404;
+}
+.config-group {
+    margin-bottom: 25px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid #e9ecef;
+}
+.config-group:last-child {
+    border-bottom: none;
+}
+.config-label {
+    display: block;
+    font-weight: 600;
+    color: #1F4E78;
+    margin-bottom: 5px;
+    font-size: 16px;
+}
+.config-desc {
+    color: #666;
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+.radio-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+    padding: 10px 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    transition: all 0.2s;
+}
+.radio-option:hover {
+    background: #e9ecef;
+}
+.radio-option input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    cursor: pointer;
+}
+.radio-option input[type="radio"]:checked + span {
+    color: #1F4E78;
+    font-weight: 500;
+}
+.info-section {
+    background: #e8f4fd;
+    border-left: 4px solid #1F4E78;
+    padding: 20px;
+    margin: 20px 0;
+    border-radius: 0 8px 8px 0;
+}
+.info-section h3 {
+    color: #1F4E78;
+    margin-bottom: 10px;
+}
+.info-section p {
+    color: #555;
+    margin-bottom: 10px;
+}
+.info-section ul {
+    margin: 10px 0;
+    padding-left: 25px;
+    color: #555;
+}
+.info-section li {
+    margin-bottom: 5px;
+}
+</style>
+{% endblock %}
