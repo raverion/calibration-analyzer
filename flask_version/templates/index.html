@@ -43,9 +43,9 @@
     <h2>Supported File Formats</h2>
     <div class="format-cards">
         <div class="format-card">
-            <h4>CSV Files (Output Data)</h4>
-            <p>Power supply output measurements with columns for voltage, current, or resistance readings.</p>
-            <code>VT2816A_m2V5_R10V_CH3.csv</code>
+            <h4>CSV Files (Output or Stimulation Devices, e.g. Power Supply, VI Source, Resistor Cascade)</h4>
+            <p>These files are .csv datalogs particularly exported from Keysight PathWave BenchVue software. Contains one channel per datalog file. For example, readings from a Keysight 34465A Digital Multimeter when connected to a VIO1304 card. Filename format:</p>
+            <code>&ltequipment_model&gt_&lttest_value&gt_&ltrange_setting&gt_&ltchannel_number&gt.csv</code>
             <div class="sample-files">
                 <span class="sample-label">📥 Sample files:</span>
                 <a href="{{ url_for('static', filename='samples/VIO2004_5V_CH3_2025-11-6_11-36-55.csv') }}" download class="sample-link">VIO2004_5V_CH3.csv</a>
@@ -53,9 +53,9 @@
             </div>
         </div>
         <div class="format-card">
-            <h4>TXT Files (Input Data)</h4>
-            <p>Voltmeter or other input device readings in hierarchical or flat format.</p>
-            <code>VT2816A_10V_R10V_1000x.txt</code>
+            <h4>TXT Files (Input or Measuring Devices, e.g. Multimeter, Oscilloscope)</h4>
+            <p>These files are in plaintext or ASCII format, copied or exported from Vector CANoe Trace window. Contains multiple channels per datalog file. Two possible formats: hierarchical (see VIO1008_m2V5_R5V.txt) and flat (VT2816A_60V_R60V.txt). Filename format:</p>
+            <code>&ltequipment_model&gt_&lttest_value&gt_&ltrange_setting&gt.txt</code>
             <div class="sample-files">
                 <span class="sample-label">📥 Sample files:</span>
                 <a href="{{ url_for('static', filename='samples/VIO1008_m2V5_R5V.txt') }}" download class="sample-link">VIO1008_m2V5_R5V.txt</a>
