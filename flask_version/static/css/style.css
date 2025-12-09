@@ -310,6 +310,37 @@ body {
     padding: 0.5rem;
     border-radius: 4px;
     font-size: 0.85rem;
+    margin-bottom: 0.75rem;
+}
+
+.sample-files {
+    margin-top: 1rem;
+    padding-top: 0.75rem;
+    border-top: 1px solid var(--gray-300);
+}
+
+.sample-label {
+    display: block;
+    font-size: 0.85rem;
+    color: var(--gray-600);
+    margin-bottom: 0.5rem;
+}
+
+.sample-link {
+    display: inline-block;
+    background: var(--primary-color);
+    color: white;
+    padding: 0.35rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.8rem;
+    text-decoration: none;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+    transition: var(--transition);
+}
+
+.sample-link:hover {
+    background: var(--primary-dark);
 }
 
 /* Upload Section */
