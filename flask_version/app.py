@@ -613,9 +613,9 @@ def generate_comparison_html(charts_data, unit, legend_items, group_colors, file
             for item in group_info['items']:
                 x_positions.append(pos)
                 if group_by == 'sample':
-                    x_labels.append(item['label'])  # equipment number (xxxxx-xxx)
+                    x_labels.append(item['label'])  # channel number (CHx)
                 else:
-                    x_labels.append(item['label'][0:-3])  # channel number (CHx)
+                    x_labels.append(item['label'][-9:])  # equipment number (xxxxx-xxx)
                 pos += 1
             group_boundaries.append({
                 'start': group_start, 
