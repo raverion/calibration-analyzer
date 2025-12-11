@@ -1,6 +1,21 @@
 import re
 from pathlib import Path
 
+
+def extract_equipment_name(filename):
+    """
+    Extract equipment name/model from filename.
+    Assumes format like: VT2816A_10V_R10V_CH1.csv or VIO2004_5V_CH3.csv
+    Returns the equipment model (e.g., 'VT2816A', 'VIO2004')
+    """
+    name = Path(filename).stem
+    # Split by underscore and take the first part as equipment name
+    parts = name.split('_')
+    if parts:
+        return parts[0]
+    return name
+
+
 def parse_filename(filename):
     """
     Extract test value, unit, channel number (if present), and range setting from filename.

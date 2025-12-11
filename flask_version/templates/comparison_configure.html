@@ -47,6 +47,20 @@
 </div>
 
 <div class="config-section">
+    <h2>🏷️ Equipment Identification</h2>
+    <p class="section-desc">Optionally enter the equipment model name to include in the report title and filename.</p>
+    
+    <div class="equipment-id-input">
+        <label for="equipment-model">Equipment Model:</label>
+        <input type="text" id="equipment-model" name="equipment_model" 
+               placeholder="e.g., VIO2004" 
+               pattern="[A-Za-z0-9\-_]+"
+               title="Alphanumeric characters, hyphens, and underscores only">
+        <span class="input-hint">This will appear in the report title (e.g., "VIO2004 50920 - Cross-Equipment Comparison Report")</span>
+    </div>
+</div>
+
+<div class="config-section">
     <h2>📊 Comparison Settings</h2>
     
     <div class="config-group">
@@ -133,6 +147,7 @@ function generateReport() {
     const groupBy = document.querySelector('input[name="group_by"]:checked').value;
     const ioType = document.querySelector('input[name="io_type"]:checked').value;
     const channels = document.querySelector('input[name="channels"]:checked').value;
+    const equipmentModel = document.getElementById('equipment-model').value.trim();
     
     loadingOverlay.style.display = 'flex';
     
@@ -144,7 +159,8 @@ function generateReport() {
         body: JSON.stringify({
             group_by: groupBy,
             io_type: ioType,
-            channels: channels
+            channels: channels,
+            equipment_model: equipmentModel
         })
     })
     .then(response => response.json())

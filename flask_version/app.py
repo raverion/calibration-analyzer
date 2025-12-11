@@ -20,7 +20,8 @@ from parsers import (
     parse_filename,
     get_unit_from_files,
     scan_text_file_for_measurement_types,
-    parse_text_file
+    parse_text_file,
+    extract_equipment_name
 )
 from excel_charts import create_tolerance_charts, apply_channel_colors_to_results
 from html_report import create_html_report
@@ -98,7 +99,6 @@ def upload_comparison_files():
     session_folder = get_session_folder()
     comparison_folder = session_folder / 'comparison'
     comparison_folder.mkdir(exist_ok=True)
-    #equipment_name = files[0].filename[0:-3]
     
     # Clear previous comparison uploads
     for old_file in comparison_folder.iterdir():
@@ -289,6 +289,7 @@ def process_comparison():
     selected_channels = data.get('channels', 'all')  # 'all', 'mean', or list of channel numbers
     selected_io_type = data.get('io_type', 'all')  # 'all', 'Input', or 'Output'
     group_by = data.get('group_by', 'sample')  # 'sample' or 'channel'
+    equipment_model = data.get('equipment_model', '')  # e.g., "VIO2004"
     
     session_folder = get_session_folder()
     comparison_folder = session_folder / 'comparison'
@@ -298,17 +299,21 @@ def process_comparison():
         # Load all Excel files and combine data
         all_data = []
         unit = None
+        equipment_type = None
         
         for file_info in session['comparison_files']:
             file_path = comparison_folder / file_info['filename']
             df = pd.read_excel(file_path, sheet_name='Test Results')
             
-            # Get unit from first file
+            # Get unit and equipment type from first file
             if unit is None:
                 for col in df.columns:
                     if 'Test Value [' in col:
                         unit = col.split('[')[1].split(']')[0]
                         break
+            
+            if equipment_type is None:
+                equipment_type = file_info['equipment_type']
             
             # Add sample ID column
             df['Sample ID'] = file_info['sample_id']
@@ -331,6 +336,13 @@ def process_comparison():
         combined_df['Error-2σ'] = (combined_df[f'Mean [{unit}]'] - 2*combined_df[f'StdDev [{unit}]']) - combined_df[f'Reference Value [{unit}]']
         combined_df['Error+2σ'] = (combined_df[f'Mean [{unit}]'] + 2*combined_df[f'StdDev [{unit}]']) - combined_df[f'Reference Value [{unit}]']
         
+        # Build full equipment identifier
+        # e.g., "VIO2004_50920" if model provided, else just "50920"
+        if equipment_model:
+            full_equipment_name = f"{equipment_model}_{equipment_type}"
+        else:
+            full_equipment_name = equipment_type
+        
         # Generate comparison report
         html_file = create_comparison_html_report(
             combined_df, 
@@ -338,11 +350,14 @@ def process_comparison():
             output_folder,
             selected_channels,
             session['comparison_files'],
-            group_by
+            group_by,
+            full_equipment_name
         )
         
         session['comparison_output'] = {
-            'html': os.path.basename(html_file)
+            'html': os.path.basename(html_file),
+            'equipment_type': equipment_type,
+            'equipment_model': equipment_model
         }
         
         return jsonify({
@@ -355,7 +370,7 @@ def process_comparison():
         return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
-def create_comparison_html_report(df, unit, output_folder, selected_channels, files_info, group_by='sample'):
+def create_comparison_html_report(df, unit, output_folder, selected_channels, files_info, group_by='sample', equipment_type=None):
     """
     Create an interactive HTML report for cross-equipment comparison.
     
@@ -366,12 +381,16 @@ def create_comparison_html_report(df, unit, output_folder, selected_channels, fi
     - selected_channels: 'all', 'mean', or list of channel numbers
     - files_info: List of file info dicts
     - group_by: 'sample' (group by equipment sample) or 'channel' (group by channel number)
+    - equipment_type: Equipment type/model for report title
     """
     from utils import CHANNEL_COLORS_HEX
     
+    # Use equipment type for filename if available
+    report_name = equipment_type if equipment_type else 'comparison'
+    
     # Generate HTML filename
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    html_file = os.path.join(str(output_folder), f'comparison_report_{timestamp}.html')
+    html_file = os.path.join(str(output_folder), f'{report_name}_comparison_{timestamp}.html')
     
     # Get unique test value + range + I/O type combinations
     unique_combinations = df.groupby([f'Test Value [{unit}]', 'Range Setting', 'I/O Type']).size().reset_index()
@@ -482,7 +501,7 @@ def create_comparison_html_report(df, unit, output_folder, selected_channels, fi
         charts_data.append(chart_info)
     
     # Generate HTML
-    html_content = generate_comparison_html(charts_data, unit, legend_items, group_colors, files_info, group_by, sample_ids, channel_ids)
+    html_content = generate_comparison_html(charts_data, unit, legend_items, group_colors, files_info, group_by, sample_ids, channel_ids, report_name)
     
     with open(html_file, 'w', encoding='utf-8') as f:
         f.write(html_content)
@@ -491,7 +510,7 @@ def create_comparison_html_report(df, unit, output_folder, selected_channels, fi
     return html_file
 
 
-def generate_comparison_html(charts_data, unit, legend_items, group_colors, files_info, group_by, sample_ids, channel_ids):
+def generate_comparison_html(charts_data, unit, legend_items, group_colors, files_info, group_by, sample_ids, channel_ids, report_name='Comparison'):
     """Generate the HTML content for the comparison report."""
     
     report_generated_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -724,7 +743,7 @@ def generate_comparison_html(charts_data, unit, legend_items, group_colors, file
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cross-Equipment Comparison Report</title>
+    <title>{report_name} - Cross-Equipment Comparison Report</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         * {{
@@ -884,8 +903,8 @@ def generate_comparison_html(charts_data, unit, legend_items, group_colors, file
 </head>
 <body>
     <div class="header">
-        <h1>📊 Cross-Equipment Comparison Report</h1>
-        <p>Comparing {len(sample_ids)} samples of EQ-{x_labels[0][0:-3]} | Generated: {report_generated_str}</p>
+        <h1>📊 {report_name} - Cross-Equipment Comparison Report</h1>
+        <p>Comparing {len(sample_ids)} equipment samples | Generated: {report_generated_str}</p>
     </div>
     
     <div class="container">
@@ -1097,6 +1116,7 @@ def process_files():
     data = request.json
     measurement_type_selections = data.get('measurement_types', {})
     user_configs = data.get('configs', [])
+    equipment_number = data.get('equipment_number', '')  # e.g., "50920-001"
     
     session_folder = get_session_folder()
     output_folder = get_output_folder()
@@ -1126,18 +1146,20 @@ def process_files():
     unit = session['files_info']['unit']
     
     try:
-        output_file, html_file = process_measurement_files(
+        output_file, html_file, equipment_name = process_measurement_files(
             input_dir=str(session_folder),
             output_dir=str(output_folder),
             user_inputs=user_inputs,
             unit=unit,
-            measurement_type_selections=full_path_selections
+            measurement_type_selections=full_path_selections,
+            equipment_number=equipment_number
         )
         
         # Store output file paths in session
         session['output_files'] = {
             'excel': os.path.basename(output_file) if output_file else None,
-            'html': os.path.basename(html_file) if html_file else None
+            'html': os.path.basename(html_file) if html_file else None,
+            'equipment_name': equipment_name
         }
         
         return jsonify({
@@ -1151,18 +1173,15 @@ def process_files():
         return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
 
 
-def process_measurement_files(input_dir, output_dir, user_inputs, unit, measurement_type_selections=None):
+def process_measurement_files(input_dir, output_dir, user_inputs, unit, measurement_type_selections=None, equipment_number=None):
     """
     Process all CSV and TXT files in the input directory and compile results into Excel.
     Modified version of the original process_files function to support web output.
+    Returns: (output_file, html_file, equipment_name)
     """
     dir_name = Path(input_dir).name
     if not dir_name:
         dir_name = Path(input_dir).resolve().name
-    
-    # Generate versioned output filename in output directory
-    base_output_file = os.path.join(output_dir, f'{dir_name}.xlsx')
-    output_file = get_versioned_filename(base_output_file)
     
     results = []
     
@@ -1173,8 +1192,28 @@ def process_measurement_files(input_dir, output_dir, user_inputs, unit, measurem
     if total_files == 0:
         raise ValueError(f"No CSV or TXT files found in {input_dir}")
     
-    # Get timestamp of the first data file (for report header)
+    # Extract equipment model from the first file (e.g., "VIO2004")
     all_data_files = csv_files + txt_files
+    equipment_model = None
+    if all_data_files:
+        first_file = all_data_files[0]
+        equipment_model = extract_equipment_name(first_file.name)
+    
+    # Combine model and number for full equipment name
+    # e.g., "VIO2004_50920-001" or just "VIO2004" if no number provided
+    if equipment_number:
+        equipment_name = f"{equipment_model}_{equipment_number}" if equipment_model else equipment_number
+    else:
+        equipment_name = equipment_model if equipment_model else dir_name
+    
+    # Use equipment name for output filename
+    output_base_name = equipment_name
+    
+    # Generate versioned output filename in output directory
+    base_output_file = os.path.join(output_dir, f'{output_base_name}.xlsx')
+    output_file = get_versioned_filename(base_output_file)
+    
+    # Get timestamp of the first data file (for report header)
     if all_data_files:
         first_file = min(all_data_files, key=lambda f: f.stat().st_mtime)
         data_file_timestamp = datetime.fromtimestamp(first_file.stat().st_mtime)
@@ -1388,9 +1427,9 @@ def process_measurement_files(input_dir, output_dir, user_inputs, unit, measurem
             apply_channel_colors_to_results(output_file, df_results, unit, color_assignments)
         
         # Generate interactive HTML report
-        html_file = create_html_report(output_file, df_results, unit, data_file_timestamp)
+        html_file = create_html_report(output_file, df_results, unit, data_file_timestamp, equipment_name)
     
-    return output_file, html_file
+    return output_file, html_file, equipment_name
 
 
 @app.route('/results')

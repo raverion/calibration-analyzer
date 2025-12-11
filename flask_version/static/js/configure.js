@@ -65,6 +65,7 @@ function processFiles() {
     try {
         const measurementTypes = getMeasurementTypeSelections();
         const configs = getConfigurations();
+        const equipmentNumber = document.getElementById('equipment-number').value.trim();
         
         loadingOverlay.style.display = 'flex';
         loadingMessage.textContent = 'Processing files...';
@@ -76,7 +77,8 @@ function processFiles() {
             },
             body: JSON.stringify({
                 measurement_types: measurementTypes,
-                configs: configs
+                configs: configs,
+                equipment_number: equipmentNumber
             })
         })
         .then(response => response.json())

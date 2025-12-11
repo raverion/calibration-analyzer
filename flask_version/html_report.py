@@ -263,7 +263,7 @@ def create_tolerance_charts(excel_file, df_results, unit):
     
     return color_assignments
 '''
-def create_html_report(output_file, df_results, unit, data_file_timestamp=None):
+def create_html_report(output_file, df_results, unit, data_file_timestamp=None, equipment_name=None):
     """
     Create an interactive HTML report using Plotly with tolerance charts and data tables.
     
@@ -272,6 +272,7 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None):
     - df_results: DataFrame with results
     - unit: Measurement unit
     - data_file_timestamp: Optional datetime of the first data file (for "Data collected on")
+    - equipment_name: Optional equipment model name for report title
     """
     if not PLOTLY_AVAILABLE:
         print("Warning: Plotly not available. Skipping HTML report generation.")
@@ -279,6 +280,9 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None):
         return None
     
     print("\nCreating interactive HTML report...")
+    
+    # Use equipment name if provided, otherwise use file stem
+    report_name = equipment_name if equipment_name else Path(output_file).stem
     
     # Generate HTML filename
     html_file = output_file.replace('.xlsx', '_report.html')
@@ -520,7 +524,7 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None):
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Measurement Report - {Path(output_file).stem}</title>
+    <title>Measurement Report - {report_name}</title>
     <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
     <style>
         * {{
@@ -838,8 +842,8 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None):
 </head>
 <body>
     <div class="header">
-        <h1>📊 Measurement Analysis Report</h1>
-        <p>Generated from: {Path(output_file).stem} | Report generated on: {report_generated_str} | Data collected on: {data_collected_str}</p>
+        <h1>📊 {report_name} - Measurement Analysis Report</h1>
+        <p>Report generated on: {report_generated_str} | Data collected on: {data_collected_str}</p>
     </div>
     
     <div class="container">
