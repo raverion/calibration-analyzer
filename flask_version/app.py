@@ -1590,6 +1590,33 @@ def generate_pdf(html_filename):
             else:
                 return jsonify({'error': 'Excel file not found. Cannot generate PDF.'}), 404
         
+        # Extract equipment info from filename (format: MODEL_NUMBER_report.html)
+        base_name = html_filename.replace('_report.html', '').replace('.html', '')
+        # Try to split into model and number
+        parts = base_name.split('_', 1)
+        if len(parts) >= 2:
+            equipment_model = parts[0]
+            equipment_number = parts[1]
+        else:
+            equipment_model = base_name
+            equipment_number = ''
+        
+        # Get data file timestamp from session or use file modification time
+        data_timestamp_str = "Unknown"
+        if 'files_info' in session and 'original_timestamps' in session['files_info']:
+            timestamps = session['files_info']['original_timestamps']
+            if timestamps:
+                earliest = min(timestamps.values())
+                data_timestamp_str = datetime.fromtimestamp(earliest).strftime("%Y-%m-%d %H:%M:%S")
+        
+        # If not in session, try to get from Excel file modification time
+        if data_timestamp_str == "Unknown":
+            try:
+                excel_mtime = os.path.getmtime(excel_path)
+                data_timestamp_str = datetime.fromtimestamp(excel_mtime).strftime("%Y-%m-%d %H:%M:%S")
+            except:
+                pass
+        
         # Read data from Excel
         df = pd.read_excel(excel_path, sheet_name='Test Results')
         
@@ -1608,8 +1635,9 @@ def generate_pdf(html_filename):
         
         from utils import CHANNEL_COLORS_HEX
         
-        # Create figures for each chart
+        # Create figures for each chart, tracking pass/fail status
         figs = []
+        chart_results = []  # List of (fig, pass_status) tuples
         
         for _, combo in unique_combos.iterrows():
             test_value = combo[f'Test Value [{unit}]']
@@ -1636,6 +1664,14 @@ def generate_pdf(html_filename):
             
             channels = chart_data['Channel'].tolist()
             x_range = [-0.5, len(channels) - 0.5]
+            
+            # Check if all data points are within tolerance
+            chart_pass = True
+            for _, row in chart_data.iterrows():
+                mean_val = row[f'Mean [{unit}]']
+                if mean_val < lower_limit or mean_val > upper_limit:
+                    chart_pass = False
+                    break
             
             # Upper limit
             fig.add_trace(go.Scatter(
@@ -1722,10 +1758,10 @@ def generate_pdf(html_filename):
                 width=900,
                 height=500,
                 template='plotly_white',
-                margin=dict(l=60, r=150, t=50, b=50)
+                margin=dict(l=60, r=150, t=50, b=80)  # Extra bottom margin for footer
             )
             
-            figs.append(fig)
+            chart_results.append((fig, chart_pass))
         
         # Create Deviation Summary Charts for PDF
         # Get all unique channels for consistent color assignment
@@ -1750,6 +1786,9 @@ def generate_pdf(html_filename):
             
             fig = go.Figure()
             
+            # Check pass/fail for deviation chart (all deviations within tolerance)
+            chart_pass = True
+            
             # Add a line for each channel
             for channel in channels:
                 ch_data = combo_data[combo_data['Channel'] == channel].copy()
@@ -1757,6 +1796,12 @@ def generate_pdf(html_filename):
                 
                 x_vals = ch_data[f'Test Value [{unit}]'].tolist()
                 deviations = (ch_data[f'Mean [{unit}]'] - ch_data[f'Reference Value [{unit}]']).tolist()
+                tolerances = ch_data[f'Tolerance [{unit}]'].tolist()
+                
+                # Check if any deviation exceeds tolerance
+                for dev, tol in zip(deviations, tolerances):
+                    if abs(dev) > tol:
+                        chart_pass = False
                 
                 color = channel_color_map[channel]
                 
@@ -1808,51 +1853,100 @@ def generate_pdf(html_filename):
                 width=900,
                 height=500,
                 template='plotly_white',
-                margin=dict(l=60, r=150, t=50, b=50)
+                margin=dict(l=60, r=150, t=50, b=80)  # Extra bottom margin for footer
             )
             
-            figs.append(fig)
+            chart_results.append((fig, chart_pass))
         
-        if not figs:
+        if not chart_results:
             return jsonify({'error': 'No charts to generate'}), 400
         
-        # Export to PDF
-        if len(figs) == 1:
-            figs[0].write_image(str(pdf_path), format='pdf')
-        else:
-            # For multiple charts, combine into single PDF
-            import tempfile
-            try:
-                from pypdf import PdfWriter, PdfReader
-            except ImportError:
-                from PyPDF2 import PdfWriter, PdfReader
-            
-            writer = PdfWriter()
-            temp_files = []
-            
-            for i, fig in enumerate(figs):
-                temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
-                temp_files.append(temp_pdf.name)
-                fig.write_image(temp_pdf.name, format='pdf')
-                temp_pdf.close()
-            
-            # Merge all PDFs
-            for temp_file in temp_files:
-                reader = PdfReader(temp_file)
-                for page in reader.pages:
-                    writer.add_page(page)
-            
-            with open(pdf_path, 'wb') as output:
-                writer.write(output)
-            
-            # Cleanup temp files
-            for temp_file in temp_files:
-                os.unlink(temp_file)
+        # Export to PDF with footers
+        import tempfile
+        try:
+            from pypdf import PdfWriter, PdfReader
+        except ImportError:
+            from PyPDF2 import PdfWriter, PdfReader
+        
+        try:
+            from reportlab.pdfgen import canvas
+            from reportlab.lib.pagesizes import letter
+            from reportlab.lib.colors import green, red, black
+            from io import BytesIO
+            REPORTLAB_AVAILABLE = True
+        except ImportError:
+            REPORTLAB_AVAILABLE = False
+        
+        writer = PdfWriter()
+        temp_files = []
+        
+        for i, (fig, chart_pass) in enumerate(chart_results):
+            temp_pdf = tempfile.NamedTemporaryFile(suffix='.pdf', delete=False)
+            temp_files.append(temp_pdf.name)
+            fig.write_image(temp_pdf.name, format='pdf')
+            temp_pdf.close()
+        
+        # Merge all PDFs and add footers
+        for idx, temp_file in enumerate(temp_files):
+            reader = PdfReader(temp_file)
+            for page in reader.pages:
+                # Get pass/fail status for this chart
+                _, chart_pass = chart_results[idx]
+                result_text = "PASS" if chart_pass else "FAIL"
+                result_color = green if chart_pass else red
+                
+                if REPORTLAB_AVAILABLE:
+                    # Create overlay with footer
+                    packet = BytesIO()
+                    page_width = float(page.mediabox.width)
+                    page_height = float(page.mediabox.height)
+                    c = canvas.Canvas(packet, pagesize=(page_width, page_height))
+                    
+                    # Footer text in lower right
+                    footer_lines = [
+                        f"Model: {equipment_model}",
+                        f"Number: {equipment_number}" if equipment_number else "",
+                        f"Data: {data_timestamp_str}",
+                    ]
+                    # Filter out empty lines
+                    footer_lines = [l for l in footer_lines if l]
+                    
+                    # Position footer in lower right
+                    x_pos = page_width - 115
+                    y_pos = 25
+                    
+                    c.setFont("Helvetica", 8)
+                    c.setFillColor(black)
+                    
+                    for line in reversed(footer_lines):
+                        c.drawString(x_pos, y_pos, line)
+                        y_pos += 10
+                    
+                    # Result with color
+                    c.setFillColor(result_color)
+                    c.setFont("Helvetica-Bold", 10)
+                    c.drawString(x_pos, y_pos, f"Result: {result_text}")
+                    
+                    c.save()
+                    packet.seek(0)
+                    
+                    # Merge overlay with page
+                    overlay_reader = PdfReader(packet)
+                    page.merge_page(overlay_reader.pages[0])
+                
+                writer.add_page(page)
+        
+        with open(pdf_path, 'wb') as output:
+            writer.write(output)
+        
+        # Cleanup temp files
+        for temp_file in temp_files:
+            os.unlink(temp_file)
         
         return send_file(str(pdf_path), as_attachment=True, download_name=pdf_filename)
         
     except ImportError as e:
-        return jsonify({'error': f'PDF generation requires additional packages (kaleido, pypdf). Install with: pip install kaleido pypdf. Error: {str(e)}'}), 500
+        return jsonify({'error': f'PDF generation requires additional packages (kaleido, pypdf). Install with: pip install kaleido pypdf reportlab. Error: {str(e)}'}), 500
     except Exception as e:
         import traceback
         return jsonify({'error': f'PDF generation failed: {str(e)}', 'traceback': traceback.format_exc()}), 500
