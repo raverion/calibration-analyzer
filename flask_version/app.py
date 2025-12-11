@@ -792,7 +792,7 @@ def generate_comparison_html(charts_data, unit, legend_items, group_colors, file
     if group_by == 'sample':
         grouping_desc = "Data is grouped by <strong>equipment sample</strong>. Each color represents a different sample, and channels within each sample are grouped together."
     else:
-        grouping_desc = "Data is grouped by <strong>channel number</strong>. Each color represents a different channel, and equipment samples within each channel are grouped together."
+        grouping_desc = "Data is grouped by <strong>channel number</strong>. Each color represents a different channel, thereby comparing equipment samples channel-by-channel."
     
     html = f'''<!DOCTYPE html>
 <html lang="en">
@@ -965,10 +965,9 @@ def generate_comparison_html(charts_data, unit, legend_items, group_colors, file
     
     <div class="container">
         <div class="info-box">
-            <h3>📌 Understanding This Report</h3>
-            <p>This report shows the <strong>error from reference value</strong> (normalized data) for each measurement. 
-            The Y-axis represents the difference between the measured mean and the reference value. 
-            Zero means perfect accuracy. The dashed lines show the ±Tolerance limits.</p>
+            <h3>📌 About This Report</h3>
+            <p>This report shows the <strong>error from reference value</strong> for each measurement. Each chart represents a specific test value. 
+            The Y-axis represents the positive or negative difference between the measured value and the reference value. The dashed lines show the ±Tolerance limits based on the equipment specification.</p>
             <p style="margin-top: 8px;">{grouping_desc}</p>
         </div>
         
