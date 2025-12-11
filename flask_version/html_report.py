@@ -499,6 +499,113 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None, 
             'html': fig.to_html(full_html=False, include_plotlyjs=False, config={'responsive': True})
         })
     
+    # Create Deviation Summary Charts (all channels, all test values in one chart)
+    # Group by I/O type AND Range Setting to create separate deviation charts
+    deviation_charts = []
+    
+    # Get all unique channels for consistent color assignment across all charts
+    all_channels = sorted(df_results['Channel'].unique())
+    channel_color_map = {ch: channel_colors[i % len(channel_colors)] for i, ch in enumerate(all_channels)}
+    
+    # Get unique combinations of I/O type and Range Setting
+    io_range_combinations = df_results.groupby(['I/O Type', 'Range Setting']).size().reset_index()
+    io_range_combinations = io_range_combinations.sort_values(['I/O Type', 'Range Setting'])
+    
+    for _, combo in io_range_combinations.iterrows():
+        io_type = combo['I/O Type']
+        range_setting = combo['Range Setting']
+        
+        # Filter data for this combination
+        mask = (df_results['I/O Type'] == io_type) & (df_results['Range Setting'] == range_setting)
+        combo_data = df_results[mask].copy()
+        
+        if len(combo_data) == 0:
+            continue
+        
+        # Get unique channels and test values for this combination
+        channels = sorted(combo_data['Channel'].unique())
+        test_values = sorted(combo_data[f'Test Value [{unit}]'].unique())
+        
+        # Create figure
+        fig = go.Figure()
+        
+        # Add a line for each channel
+        for channel in channels:
+            ch_data = combo_data[combo_data['Channel'] == channel].copy()
+            ch_data = ch_data.sort_values(f'Test Value [{unit}]')
+            
+            x_vals = ch_data[f'Test Value [{unit}]'].tolist()
+            # Calculate deviation (Mean - Reference)
+            deviations = (ch_data[f'Mean [{unit}]'] - ch_data[f'Reference Value [{unit}]']).tolist()
+            means = ch_data[f'Mean [{unit}]'].tolist()
+            refs = ch_data[f'Reference Value [{unit}]'].tolist()
+            
+            color = channel_color_map[channel]
+            
+            # Add line with markers
+            fig.add_trace(go.Scatter(
+                x=x_vals,
+                y=deviations,
+                mode='lines+markers',
+                name=f'CH{channel}',
+                line=dict(color=color, width=2),
+                marker=dict(color=color, size=8, symbol='diamond'),
+                hovertemplate=(
+                    f'<b>Channel {channel}</b><br>'
+                    f'Test Value: %{{x}} {unit}<br>'
+                    f'Deviation: %{{y:.6f}} {unit}<br>'
+                    f'Mean: %{{customdata[0]:.6f}} {unit}<br>'
+                    f'Reference: %{{customdata[1]:.6f}} {unit}<extra></extra>'
+                ),
+                customdata=list(zip(means, refs))
+            ))
+        
+        # Add zero reference line
+        fig.add_hline(
+            y=0,
+            line=dict(color='#2E7D32', width=2),
+            annotation_text="Zero Deviation",
+            annotation_position="bottom right"
+        )
+        
+        # Update layout
+        io_label = "Input" if io_type == "Input" else "Output"
+        range_label = f" (Range: {range_setting})" if range_setting and range_setting != 'N/A' else ""
+        chart_title = f'Deviation Summary - {io_label}{range_label}'
+        
+        fig.update_layout(
+            title=None,
+            xaxis_title=f'Test Value [{unit}]',
+            yaxis_title=f'Deviation [{unit}]',
+            font=dict(family='Segoe UI', size=11),
+            legend=dict(
+                orientation='h',
+                yanchor='bottom',
+                y=1.02,
+                xanchor='center',
+                x=0.5,
+                bgcolor='rgba(255,255,255,0.9)',
+                bordercolor='#e9ecef',
+                borderwidth=1
+            ),
+            showlegend=True,
+            hovermode='closest',
+            plot_bgcolor='white',
+            paper_bgcolor='white',
+            margin=dict(l=60, r=20, t=50, b=50),
+            autosize=True
+        )
+        
+        # Add gridlines
+        fig.update_xaxes(showgrid=True, gridwidth=1, gridcolor='#E0E0E0')
+        fig.update_yaxes(showgrid=True, gridwidth=1, gridcolor='#E0E0E0', zeroline=True, zerolinecolor='#2E7D32', zerolinewidth=2)
+        
+        deviation_charts.append({
+            'title': chart_title,
+            'io_type': io_type,
+            'html': fig.to_html(full_html=False, include_plotlyjs=False, config={'responsive': True})
+        })
+    
     # Create summary statistics table
     summary_pass = (df_results['Mean Check'] == 'PASS').sum()
     summary_fail = (df_results['Mean Check'] == 'FAIL').sum()
@@ -671,6 +778,26 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None, 
         .chart-wrapper > div {{
             width: 100% !important;
             height: 100% !important;
+        }}
+        .deviation-chart-grid {{
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 25px;
+        }}
+        @media (max-width: 1400px) {{
+            .deviation-chart-grid {{
+                grid-template-columns: 1fr;
+            }}
+        }}
+        .deviation-chart-container {{
+            background: #fafafa;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #e9ecef;
+            min-height: 450px;
+        }}
+        .deviation-chart {{
+            height: 400px;
         }}
         table {{
             width: 100%;
@@ -921,9 +1048,40 @@ def create_html_report(output_file, df_results, unit, data_file_timestamp=None, 
             </div>
         </div>
         
+        <!-- Deviation Summary Section -->
+        <div class="section">
+            <div class="section-header" onclick="toggleSection('deviation-section')">
+                <h2>📉 Deviation Summary</h2>
+                <span class="toggle" id="deviation-section-toggle">▼</span>
+            </div>
+            <div class="section-content collapsible active" id="deviation-section">
+                <p style="color: #666; margin-bottom: 15px; font-size: 0.9rem;">
+                    Shows the deviation (Mean - Reference) for all channels across all test values. 
+                    The green line indicates zero deviation.
+                </p>
+                <div class="deviation-chart-grid">
+'''
+    
+    # Add deviation charts
+    for chart_data in deviation_charts:
+        io_class = 'input' if chart_data['io_type'] == 'Input' else 'output'
+        html_content += f'''
+                    <div class="deviation-chart-container">
+                        <div class="chart-title {io_class}">{chart_data['title']}</div>
+                        <div class="chart-wrapper deviation-chart">
+                            {chart_data['html']}
+                        </div>
+                    </div>
+'''
+    
+    html_content += '''
+                </div>
+            </div>
+        </div>
+        
         <!-- Data Table Section -->
         <div class="section">
-            <div class="section-header" onclick="toggleSection('data-section')">
+            <div class="section-header" onclick="toggleSection('data-section')">>
                 <h2>📋 Detailed Results</h2>
                 <span class="toggle" id="data-section-toggle">▼</span>
             </div>
