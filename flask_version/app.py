@@ -28,7 +28,7 @@ from html_report import create_html_report
 from utils import get_versioned_filename
 
 app = Flask(__name__)
-app.secret_key = os.urandom(24)
+app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24))
 
 # Configuration
 UPLOAD_FOLDER = Path(__file__).parent / 'uploads'
@@ -39,6 +39,7 @@ OUTPUT_FOLDER.mkdir(exist_ok=True)
 app.config['UPLOAD_FOLDER'] = str(UPLOAD_FOLDER)
 app.config['OUTPUT_FOLDER'] = str(OUTPUT_FOLDER)
 app.config['MAX_CONTENT_LENGTH'] = 100 * 1024 * 1024  # 100MB max upload
+app.config['SESSION_COOKIE_SECURE'] = os.environ.get('RENDER', False)  # Secure cookies on Render
 
 
 def get_session_folder():
